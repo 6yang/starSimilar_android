@@ -3,15 +3,12 @@ package com.example.cameraalbumtest;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import android.Manifest;
-import android.annotation.TargetApi;
-import android.content.ContentUris;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -20,31 +17,27 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.DocumentsContract;
 import android.provider.MediaStore;
-import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.cameraalbumtest.util.HttpUtil;
+import com.example.cameraalbumtest.util.PicturedegreeUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.UUID;
 
 import okhttp3.Call;
 import okhttp3.Callback;
-import okhttp3.FormBody;
-import okhttp3.OkHttpClient;
-import okhttp3.RequestBody;
-import okhttp3.Request;
 import okhttp3.Response;
 
 
@@ -58,7 +51,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private Uri imageUri;
 
-    private String uploadUrl;
+    private String uploadUrl = "http://10.0.2.2:8888/cn.yang.faceCheck/file/upload";
 
     private byte[] fileBuf;
 
@@ -89,9 +82,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 choosePictureFromAlbum();
                 break;
             case R.id.upload:
-                for (byte b : fileBuf) {
-                    Log.d("s", String.valueOf(b));
-                }
+                upload();
             default:
                 break;
         }
@@ -128,7 +119,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     * 调用照相机进行拍照
     * */
     private void takePicture() {
-        uploadFileName = System.currentTimeMillis()+".jpg";
+        uploadFileName = UUID.randomUUID().toString()+".jpg";
         File outputImage = new File(getExternalCacheDir(), uploadFileName);
         Log.d("照相的图片名称", uploadFileName);
         try {
@@ -166,9 +157,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (resultCode == RESULT_OK){
                     try {
                         InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                        String path = imageUri.getPath();
+                        Log.d("照片路径", path);
                         fileBuf=convertToBytes(inputStream);   //后来加的
                         Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
+                        bitmap = PicturedegreeUtil.toturn(bitmap);
                         imageViewPicture.setImageBitmap(bitmap);
+                        //反转图片以后从新读取
+                        PicturedegreeUtil.saveBitmap(this, bitmap, uploadFileName);
+                        InputStream is = getContentResolver().openInputStream(imageUri);
+                        fileBuf=convertToBytes(is);
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (Exception e) {
@@ -201,6 +199,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             InputStream inputStream = getContentResolver().openInputStream(uri);
             fileBuf=convertToBytes(inputStream);
             Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
+//            bitmap = PicturedegreeUtil.toturn(bitmap);
             imageViewPicture.setImageBitmap(bitmap);
         } catch (Exception e) {
             e.printStackTrace();
@@ -254,6 +253,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     @Override
                     public void onResponse(Call call, Response response) throws IOException {
                         String res = response.body().string();
+                        if("success".equals(res)){
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(MainActivity.this, "照片上传成功", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        }
                         Log.d("服务器端返回的数据", res);
                     }
                 });
