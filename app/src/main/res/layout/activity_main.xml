@@ -17,6 +17,12 @@
         android:layout_height="wrap_content"
         android:text="从相册中选择"
         />
+    <Button
+        android:id="@+id/upload"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="查看和我最像的明星" />
+
 
     <ImageView
         android:id="@+id/picture"

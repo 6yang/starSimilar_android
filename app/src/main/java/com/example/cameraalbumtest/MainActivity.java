@@ -2,6 +2,8 @@ package com.example.cameraalbumtest;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -15,23 +17,36 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Picture;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.example.cameraalbumtest.util.HttpUtil;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.Target;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.FormBody;
+import okhttp3.OkHttpClient;
+import okhttp3.RequestBody;
+import okhttp3.Request;
+import okhttp3.Response;
+
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -43,6 +58,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private Uri imageUri;
 
+    private String uploadUrl;
+
+    private byte[] fileBuf;
+
+    private String uploadFileName;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,9 +72,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Button take_photo_bt = findViewById(R.id.take_photo);
         imageViewPicture = findViewById(R.id.picture);
         Button chooseFromAlbum = findViewById(R.id.choose_from_album);
+        Button uploadBtn = findViewById(R.id.upload);
         take_photo_bt.setOnClickListener(this);
         chooseFromAlbum.setOnClickListener(this);
+        uploadBtn.setOnClickListener(this);
     }
+
 
     @Override
     public void onClick(View v) {
@@ -64,13 +88,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.choose_from_album:
                 choosePictureFromAlbum();
                 break;
-
+            case R.id.upload:
+                for (byte b : fileBuf) {
+                    Log.d("s", String.valueOf(b));
+                }
             default:
                 break;
         }
     }
 
-    //从相册中选择照片
+    /*
+    * 从相册中选择照片
+    * */
     private void choosePictureFromAlbum() {
         //--权限和权限数组
         String permission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
@@ -84,7 +113,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    //打开相册
+    /*
+    * 打开相册
+    * */
     private void openAlbum() {
         Intent intent = new Intent("android.intent.action.GET_CONTENT");
         intent.setType("image/*");
@@ -93,9 +124,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
 
-    //拍照
+    /*
+    * 调用照相机进行拍照
+    * */
     private void takePicture() {
-        File outputImage = new File(getExternalCacheDir(), "output_img.jpg");
+        uploadFileName = System.currentTimeMillis()+".jpg";
+        File outputImage = new File(getExternalCacheDir(), uploadFileName);
+        Log.d("照相的图片名称", uploadFileName);
         try {
             if(outputImage.exists()){
                 outputImage.delete();
@@ -114,11 +149,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
         intent.putExtra(MediaStore.EXTRA_OUTPUT,imageUri);
+//        Log.d("11", MediaStore.EXTRA_OUTPUT);
+//        Log.d("22", String.valueOf(imageUri));
+//        Log.d("33", imageUri.getPath());
         startActivityForResult(intent,TAKE_PHOTO);
     }
 
-
-    //将拍摄的照片显示出来
+    /*
+    * 处理startactivity返回的结果
+    * */
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -127,84 +166,51 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (resultCode == RESULT_OK){
                     try {
                         InputStream inputStream = getContentResolver().openInputStream(imageUri);
-//                        Log.d("问题点", "onActivityResult: "+inputStream.toString());
-                        Bitmap bitmap = BitmapFactory.decodeStream(getContentResolver().openInputStream(imageUri));
-
+                        fileBuf=convertToBytes(inputStream);   //后来加的
+                        Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
                         imageViewPicture.setImageBitmap(bitmap);
                     } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
                 break;
             case CHOOSE_PHOTO:
                 if (resultCode == RESULT_OK){
-                    //判断手机版本号
-                    if(Build.VERSION.SDK_INT >=19){ //4.4 以上使用这个方法处理图片
-                      handlerImageOnKitKat(data);
-                    }else{  //4.4 以下使用这个方法处理图片
-
-                    }
+                    handleSelect(data);
+                    Log.d("相册选中的照片名称", uploadFileName);
                 }
                 break;
             default:
                 break;
         }
     }
-
-    //4.4 以上使用这个方法处理图片
-    @TargetApi(19)
-    private void handlerImageOnKitKat(Intent data) {
-        String imagePath = null;
-        Uri uri = data.getData();
-        if(DocumentsContract.isDocumentUri(this,uri)){
-            //如果是Document类型的Uri 则通过document 来处理
-            String docId = DocumentsContract.getDocumentId(uri);
-            if("com.android.providers.media.documents".equals(uri.getAuthority())){
-                String id = docId.split(":")[1];
-                String selection = MediaStore.Images.Media._ID + "=" + id;
-                imagePath = getImagePath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,selection);
-            }else if("com.android.providers.downloads.documents".equals(uri.getAuthority())){
-                Uri contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), Long.valueOf(docId));
-                imagePath = getImagePath(contentUri,null);
-            }
-        }else if("content".equalsIgnoreCase(uri.getScheme())){
-            //如果是普通类型的URI，使用普通方式进行处理
-            imagePath  = getImagePath(uri,null);
-        }else if("file".equalsIgnoreCase(uri.getScheme())){
-            //如果是file类型的图片 ，直接获取图片路径即可
-            imagePath = uri.getPath();
+    /*
+    * 选择照片以后的读取与显示工作
+    * */
+    private void handleSelect(Intent intent) {
+        Cursor cursor = null;
+        Uri uri = intent.getData();
+        cursor = getContentResolver().query(uri, null, null, null, null);
+        if (cursor.moveToFirst()) {
+            int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME);
+            uploadFileName = cursor.getString(columnIndex);
         }
-        //根据图片路径显示图片
-        disPlayImage(imagePath);
-    }
-
-    //获取图片路径
-
-    private String getImagePath(Uri uri, String selection) {
-        String path = null;
-        //获取图片
-        Cursor cursor = getContentResolver().query(uri, null, selection, null, null);
-        if(cursor!=null){
-            if(cursor.moveToFirst()){  //读取一条
-                path = cursor.getString(cursor.getColumnIndex(MediaStore.Images.Media.DATA));
-            }
-            cursor.close();
-        }
-        return path;
-    }
-
-    //根据图片路径显示图片
-    private void disPlayImage(String imagePath) {
-        if (imagePath!=null){
-            Bitmap bitmap = BitmapFactory.decodeFile(imagePath);
+        try {
+            InputStream inputStream = getContentResolver().openInputStream(uri);
+            fileBuf=convertToBytes(inputStream);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
             imageViewPicture.setImageBitmap(bitmap);
-        }else{
-            Toast.makeText(this, "图片没有找到", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+        cursor.close();
     }
 
-    //权限
-    //弹出小框框来选择是不是赋予权限
+    /*
+    * 弹出小框框来选择是不是赋予权限
+    * */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode){
@@ -217,4 +223,42 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         }
     }
+    /*
+    * 文件转化为字节流
+    * */
+    private byte[] convertToBytes(InputStream inputStream) throws Exception{
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[1024];
+        int len = 0;
+        while ((len = inputStream.read(buf)) > 0) {
+            out.write(buf, 0, len);
+        }
+        out.close();
+        inputStream.close();
+        return  out.toByteArray();
+    }
+
+    /*
+    * 上传图片到服务器
+    * */
+    private void upload(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpUtil.sendOkHttpRequest(uploadFileName, fileBuf, uploadUrl, new Callback() {
+                    @Override
+                    public void onFailure(Call call, IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    @Override
+                    public void onResponse(Call call, Response response) throws IOException {
+                        String res = response.body().string();
+                        Log.d("服务器端返回的数据", res);
+                    }
+                });
+            }
+        }).start();
+    }
+
 }
