@@ -292,7 +292,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Toast.makeText(MainActivity.this, "sorry~ 服务器正忙", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(MainActivity.this, "sorry~ 您的照片没有检测到人脸", Toast.LENGTH_SHORT).show();
+                                    progressDialog.cancel();
                                 }
                             });
                         }else{
