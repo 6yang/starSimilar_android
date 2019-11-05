@@ -9,7 +9,7 @@ import okhttp3.RequestBody;
 
 public class HttpUtil {
 
-    public static void sendOkHttpRequest(String uploadFileName, byte[] fileBuf,String uploadUrl,okhttp3.Callback callback){
+    public static void sendOkHttpRequest(String uploadFileName, byte[] fileBuf,String uploadUrl,String group,okhttp3.Callback callback){
         OkHttpClient client = new OkHttpClient();
 
         //上传文件域的请求体部分
@@ -18,7 +18,8 @@ public class HttpUtil {
         //整个上传的请求体部分（普通表单+文件上传域）
         RequestBody requestBody = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("title", "图片文件")
+                .addFormDataPart("username", "liuyang")
+                .addFormDataPart("starGroup", group)
                 .addFormDataPart("imgFile", uploadFileName, formBody)
                 .build();
         Request request = new Request.Builder()

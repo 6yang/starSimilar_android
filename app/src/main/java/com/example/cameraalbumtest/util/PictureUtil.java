@@ -8,12 +8,15 @@ import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.os.Environment;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.UUID;
 
-public class PicturedegreeUtil {
+public class PictureUtil {
 
     private static final String SD_PATH = "/sdcard/Android/data/com.example.cameraalbumtest/cache/";
     private static final String IN_PATH = "" ;
@@ -82,5 +85,12 @@ public class PicturedegreeUtil {
             e.printStackTrace();
         }
         return degree;
+    }
+
+    public static InputStream compressPicture(Bitmap bitmap) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 15, baos); // 压缩质量
+        InputStream is = new ByteArrayInputStream(baos.toByteArray());
+        return is;
     }
 }

@@ -7,8 +7,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import android.Manifest;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -22,18 +24,25 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.bumptech.glide.Glide;
+import com.example.cameraalbumtest.entity.SearchOut;
 import com.example.cameraalbumtest.util.HttpUtil;
-import com.example.cameraalbumtest.util.PicturedegreeUtil;
+import com.example.cameraalbumtest.util.PictureUtil;
+import com.google.gson.Gson;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.UUID;
 
 import okhttp3.Call;
@@ -51,11 +60,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private Uri imageUri;
 
-    private String uploadUrl = "http://10.0.2.2:8888/cn.yang.faceCheck/file/upload";
+    private String uploadUrl = "http://112.124.46.10:8080/face/user/searchSimilar";
 
     private byte[] fileBuf;
 
     private String uploadFileName;
+
+    private TextView show_json;
+
+    private TextView show_name;
+
+    private TextView show_score;
+
+    private ImageView star_picture;
+
+    private LinearLayout star_info;
+
+    private ProgressDialog progressDialog;
 
 
     @Override
@@ -65,10 +86,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Button take_photo_bt = findViewById(R.id.take_photo);
         imageViewPicture = findViewById(R.id.picture);
         Button chooseFromAlbum = findViewById(R.id.choose_from_album);
-        Button uploadBtn = findViewById(R.id.upload);
+        Button uploadBtn_female = findViewById(R.id.upload_female);
+        show_name =findViewById(R.id.show_name);
+        show_score = findViewById(R.id.show_score);
+        star_picture = findViewById(R.id.star_picture);
+        star_info = findViewById(R.id.star_info);
         take_photo_bt.setOnClickListener(this);
         chooseFromAlbum.setOnClickListener(this);
-        uploadBtn.setOnClickListener(this);
+        uploadBtn_female.setOnClickListener(this);
+        show_json = findViewById(R.id.show_json);
+        star_info.setVisibility(View.GONE);
     }
 
 
@@ -76,13 +103,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View v) {
         switch (v.getId()){
             case R.id.take_photo:
+                star_info.setVisibility(View.GONE);
                 takePicture();
                 break;
             case R.id.choose_from_album:
+                star_info.setVisibility(View.GONE);
                 choosePictureFromAlbum();
                 break;
-            case R.id.upload:
-                upload();
+            case R.id.upload_female:
+                progressDialog = new ProgressDialog(MainActivity.this);
+                progressDialog.setMessage("loading....");
+                progressDialog.setCancelable(true);
+                progressDialog.show();
+                upload("star_woman_asia");
             default:
                 break;
         }
@@ -159,14 +192,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         InputStream inputStream = getContentResolver().openInputStream(imageUri);
                         String path = imageUri.getPath();
                         Log.d("照片路径", path);
-                        fileBuf=convertToBytes(inputStream);   //后来加的
+                        fileBuf=convertToBytes(inputStream);
+                        Log.d("压缩之前", String.valueOf(fileBuf.length));
                         Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
-                        bitmap = PicturedegreeUtil.toturn(bitmap);
+                        fileBuf = convertToBytes(PictureUtil.compressPicture(bitmap)); //对要上传的图片进行压缩处理
+                        Log.d("压缩之后", String.valueOf(fileBuf.length));
                         imageViewPicture.setImageBitmap(bitmap);
-                        //反转图片以后从新读取
-                        PicturedegreeUtil.saveBitmap(this, bitmap, uploadFileName);
-                        InputStream is = getContentResolver().openInputStream(imageUri);
-                        fileBuf=convertToBytes(is);
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (Exception e) {
@@ -177,7 +208,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case CHOOSE_PHOTO:
                 if (resultCode == RESULT_OK){
                     handleSelect(data);
-                    Log.d("相册选中的照片名称", uploadFileName);
                 }
                 break;
             default:
@@ -194,19 +224,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (cursor.moveToFirst()) {
             int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME);
             uploadFileName = cursor.getString(columnIndex);
+            Log.d("sss", uploadFileName);
         }
         try {
             InputStream inputStream = getContentResolver().openInputStream(uri);
             fileBuf=convertToBytes(inputStream);
             Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
-//            bitmap = PicturedegreeUtil.toturn(bitmap);
+            //对要上传的图片进行压缩
+            fileBuf = convertToBytes(PictureUtil.compressPicture(bitmap));
+            //界面上展示的是没有进行压缩过的图片
             imageViewPicture.setImageBitmap(bitmap);
         } catch (Exception e) {
             e.printStackTrace();
         }
         cursor.close();
     }
-
     /*
     * 弹出小框框来选择是不是赋予权限
     * */
@@ -222,6 +254,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         }
     }
+
     /*
     * 文件转化为字节流
     * */
@@ -240,11 +273,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     /*
     * 上传图片到服务器
     * */
-    private void upload(){
+    private void upload(final String group){
         new Thread(new Runnable() {
             @Override
             public void run() {
-                HttpUtil.sendOkHttpRequest(uploadFileName, fileBuf, uploadUrl, new Callback() {
+                HttpUtil.sendOkHttpRequest(uploadFileName, fileBuf, uploadUrl,group, new Callback() {
                     @Override
                     public void onFailure(Call call, IOException e) {
                         e.printStackTrace();
@@ -252,16 +285,32 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
                     @Override
                     public void onResponse(Call call, Response response) throws IOException {
-                        String res = response.body().string();
-                        if("success".equals(res)){
+                        final String res = response.body().string();
+                        Gson gson = new Gson();
+                        final SearchOut searchOut = gson.fromJson(res, SearchOut.class);
+                        if ("fail".equals(searchOut.getSuccess_tag())){
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Toast.makeText(MainActivity.this, "照片上传成功", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(MainActivity.this, "sorry~ 服务器正忙", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        }else{
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    star_info.setVisibility(View.VISIBLE);
+                                    show_name.setText(searchOut.getUser_info());
+                                    show_score.setText(searchOut.getScore()+"%");
+//                                    show_json.setText(res);
+                                    Glide.with(MainActivity.this)
+                                            .load(searchOut.getImg_url())
+                                            .into(star_picture);
+                                    progressDialog.cancel();
                                 }
                             });
                         }
-                        Log.d("服务器端返回的数据", res);
+
                     }
                 });
             }
