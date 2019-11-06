@@ -78,6 +78,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private ProgressDialog progressDialog;
 
+    private Button uploadBtn_female;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,7 +88,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Button take_photo_bt = findViewById(R.id.take_photo);
         imageViewPicture = findViewById(R.id.picture);
         Button chooseFromAlbum = findViewById(R.id.choose_from_album);
-        Button uploadBtn_female = findViewById(R.id.upload_female);
+        uploadBtn_female = findViewById(R.id.upload_female);
         show_name =findViewById(R.id.show_name);
         show_score = findViewById(R.id.show_score);
         star_picture = findViewById(R.id.star_picture);
@@ -96,6 +98,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         uploadBtn_female.setOnClickListener(this);
         show_json = findViewById(R.id.show_json);
         star_info.setVisibility(View.GONE);
+        uploadBtn_female.setVisibility(View.GONE);
     }
 
 
@@ -105,6 +108,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.take_photo:
                 star_info.setVisibility(View.GONE);
                 takePicture();
+
                 break;
             case R.id.choose_from_album:
                 star_info.setVisibility(View.GONE);
@@ -198,6 +202,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         fileBuf = convertToBytes(PictureUtil.compressPicture(bitmap)); //对要上传的图片进行压缩处理
                         Log.d("压缩之后", String.valueOf(fileBuf.length));
                         imageViewPicture.setImageBitmap(bitmap);
+                        uploadBtn_female.setVisibility(View.VISIBLE);
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (Exception e) {
@@ -208,6 +213,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case CHOOSE_PHOTO:
                 if (resultCode == RESULT_OK){
                     handleSelect(data);
+                    uploadBtn_female.setVisibility(View.VISIBLE);
                 }
                 break;
             default:
