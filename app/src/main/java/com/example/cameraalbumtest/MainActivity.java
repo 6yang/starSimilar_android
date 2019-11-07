@@ -76,9 +76,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private LinearLayout star_info;
 
-    private ProgressDialog progressDialog;
+    private ProgressDialog progressDialog ;
 
     private Button uploadBtn_female;
+
+    private Button uploadBtn_male;
+
+    private TextView show_group_name;
 
 
     @Override
@@ -89,16 +93,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         imageViewPicture = findViewById(R.id.picture);
         Button chooseFromAlbum = findViewById(R.id.choose_from_album);
         uploadBtn_female = findViewById(R.id.upload_female);
+        uploadBtn_male = findViewById(R.id.upload_male);
         show_name =findViewById(R.id.show_name);
         show_score = findViewById(R.id.show_score);
         star_picture = findViewById(R.id.star_picture);
         star_info = findViewById(R.id.star_info);
+        show_group_name = findViewById(R.id.show_group_name);
         take_photo_bt.setOnClickListener(this);
         chooseFromAlbum.setOnClickListener(this);
         uploadBtn_female.setOnClickListener(this);
+        uploadBtn_male.setOnClickListener(this);
         show_json = findViewById(R.id.show_json);
         star_info.setVisibility(View.GONE);
         uploadBtn_female.setVisibility(View.GONE);
+        uploadBtn_male.setVisibility(View.GONE);
+        progressDialog  = new ProgressDialog(MainActivity.this);
     }
 
 
@@ -115,11 +124,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 choosePictureFromAlbum();
                 break;
             case R.id.upload_female:
-                progressDialog = new ProgressDialog(MainActivity.this);
+                show_name.setText("");
+                show_score.setText("");
+                show_group_name.setText("");
+                Glide.with(MainActivity.this)
+                        .load("")
+                        .into(star_picture);
                 progressDialog.setMessage("loading....");
                 progressDialog.setCancelable(true);
                 progressDialog.show();
-                upload("star_woman_asia");
+                upload("female");
+                break;
+            case R.id.upload_male:
+                show_name.setText("");
+                show_score.setText("");
+                show_group_name.setText("");
+                Glide.with(MainActivity.this)
+                        .load("")
+                        .into(star_picture);
+                progressDialog.setMessage("loading....");
+                progressDialog.setCancelable(true);
+                progressDialog.show();
+                upload("male");
+                break;
             default:
                 break;
         }
@@ -203,6 +230,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         Log.d("压缩之后", String.valueOf(fileBuf.length));
                         imageViewPicture.setImageBitmap(bitmap);
                         uploadBtn_female.setVisibility(View.VISIBLE);
+                        uploadBtn_male.setVisibility(View.VISIBLE);
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (Exception e) {
@@ -214,6 +242,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (resultCode == RESULT_OK){
                     handleSelect(data);
                     uploadBtn_female.setVisibility(View.VISIBLE);
+                    uploadBtn_male.setVisibility(View.VISIBLE);
                 }
                 break;
             default:
@@ -293,7 +322,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     public void onResponse(Call call, Response response) throws IOException {
                         final String res = response.body().string();
                         Gson gson = new Gson();
-                        final SearchOut searchOut = gson.fromJson(res, SearchOut.class);
+                         final SearchOut searchOut = gson.fromJson(res, SearchOut.class);
+                        Log.d("数据", String.valueOf(searchOut));
+
+                         final String user_info = searchOut.getUser_info();
                         if ("fail".equals(searchOut.getSuccess_tag())){
                             runOnUiThread(new Runnable() {
                                 @Override
@@ -306,13 +338,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
+
                                     star_info.setVisibility(View.VISIBLE);
                                     show_name.setText(searchOut.getUser_info());
                                     show_score.setText(searchOut.getScore()+"%");
+                                    show_group_name.setText(searchOut.getGroupName());
 //                                    show_json.setText(res);
                                     Glide.with(MainActivity.this)
                                             .load(searchOut.getImg_url())
                                             .into(star_picture);
+
                                     progressDialog.cancel();
                                 }
                             });

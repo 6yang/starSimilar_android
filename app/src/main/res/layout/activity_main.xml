@@ -31,7 +31,13 @@
                 android:id="@+id/upload_female"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="和我最像的明星" />
+                android:text="和我最像的女演员" />
+
+            <Button
+                android:id="@+id/upload_male"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="和我最像的男演员" />
 
 
             <ImageView
@@ -54,13 +60,22 @@
                     android:layout_gravity="center" />
 
                 <TextView
-                    android:id="@+id/show_name"
+                    android:id="@+id/show_group_name"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text=""
                     android:textColor="@color/colorPrimaryDark"
                     android:textSize="20dp" />
+
+                <TextView
+                    android:id="@+id/show_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text=""
+                    android:textColor="#FF0000"
+                    android:textSize="30dp" />
 
                 <TextView
                     android:layout_width="match_parent"
