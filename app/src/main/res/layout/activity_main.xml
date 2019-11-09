@@ -38,13 +38,23 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="和我最像的男演员" />
-
+            <Button
+                android:id="@+id/showOursName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="看看图中都有谁"
+                />
 
             <ImageView
                 android:id="@+id/picture"
                 android:layout_width="200dp"
                 android:layout_height="300dp"
                 android:layout_gravity="center" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycle_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"></androidx.recyclerview.widget.RecyclerView>
 
             <LinearLayout
                 android:id="@+id/star_info"

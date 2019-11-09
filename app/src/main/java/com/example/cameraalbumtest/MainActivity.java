@@ -7,6 +7,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import android.Manifest;
@@ -29,6 +31,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
+import com.example.cameraalbumtest.entity.Our;
+import com.example.cameraalbumtest.entity.Ours;
 import com.example.cameraalbumtest.entity.SearchOut;
 import com.example.cameraalbumtest.util.HttpUtil;
 import com.example.cameraalbumtest.util.PictureUtil;
@@ -43,6 +47,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import okhttp3.Call;
@@ -61,6 +67,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Uri imageUri;
 
     private String uploadUrl = "http://112.124.46.10:8080/face/user/searchSimilar";
+
+    private String findNamesUrl = "http://112.124.46.10:8080/face/star/searchSimilar";
 
     private byte[] fileBuf;
 
@@ -84,6 +92,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private TextView show_group_name;
 
+    private Button showOursName;
+
+    private RecyclerView recyclerView;
+
+    private List<Our> ourList = new ArrayList<>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,15 +113,24 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         star_picture = findViewById(R.id.star_picture);
         star_info = findViewById(R.id.star_info);
         show_group_name = findViewById(R.id.show_group_name);
+        showOursName = findViewById(R.id.showOursName);
         take_photo_bt.setOnClickListener(this);
         chooseFromAlbum.setOnClickListener(this);
         uploadBtn_female.setOnClickListener(this);
         uploadBtn_male.setOnClickListener(this);
+        showOursName.setOnClickListener(this);
         show_json = findViewById(R.id.show_json);
         star_info.setVisibility(View.GONE);
         uploadBtn_female.setVisibility(View.GONE);
         uploadBtn_male.setVisibility(View.GONE);
+        showOursName.setVisibility(View.GONE);
         progressDialog  = new ProgressDialog(MainActivity.this);
+        recyclerView = findViewById(R.id.recycle_view);
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
+        linearLayoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
+        recyclerView.setLayoutManager(linearLayoutManager);
+        recyclerView.setVisibility(View.GONE);
+
     }
 
 
@@ -115,12 +138,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View v) {
         switch (v.getId()){
             case R.id.take_photo:
+                ourList.clear();
                 star_info.setVisibility(View.GONE);
+                recyclerView.setVisibility(View.GONE);
                 takePicture();
 
                 break;
             case R.id.choose_from_album:
+                ourList.clear();
                 star_info.setVisibility(View.GONE);
+                recyclerView.setVisibility(View.GONE);
                 choosePictureFromAlbum();
                 break;
             case R.id.upload_female:
@@ -146,6 +173,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 progressDialog.setCancelable(true);
                 progressDialog.show();
                 upload("male");
+                break;
+
+            case R.id.showOursName:
+                progressDialog.setMessage("loading....");
+                progressDialog.setCancelable(true);
+                progressDialog.show();
+                uploadFindOurs("classmates");
                 break;
             default:
                 break;
@@ -228,9 +262,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         Bitmap bitmap = BitmapFactory.decodeByteArray(fileBuf, 0, fileBuf.length);
                         fileBuf = convertToBytes(PictureUtil.compressPicture(bitmap)); //对要上传的图片进行压缩处理
                         Log.d("压缩之后", String.valueOf(fileBuf.length));
+                        bitmap  = PictureUtil.toturn(bitmap);
                         imageViewPicture.setImageBitmap(bitmap);
                         uploadBtn_female.setVisibility(View.VISIBLE);
                         uploadBtn_male.setVisibility(View.VISIBLE);
+                        showOursName.setVisibility(View.VISIBLE);
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
                     } catch (Exception e) {
@@ -243,6 +279,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     handleSelect(data);
                     uploadBtn_female.setVisibility(View.VISIBLE);
                     uploadBtn_male.setVisibility(View.VISIBLE);
+                    showOursName.setVisibility(View.VISIBLE);
                 }
                 break;
             default:
@@ -353,6 +390,64 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             });
                         }
 
+                    }
+                });
+            }
+        }).start();
+    }
+
+
+    /*
+     * 上传图片到服务器
+     * */
+    private void uploadFindOurs(final String group) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpUtil.sendOkHttpRequest(uploadFileName, fileBuf, findNamesUrl, group, new Callback() {
+                    @Override
+                    public void onFailure(Call call, IOException e) {
+                        e.printStackTrace();
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                progressDialog.cancel();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onResponse(Call call, Response response) throws IOException {
+                        final String res = response.body().string();
+                        Ours ours = new Gson().fromJson(res, Ours.class);
+                        if("SUCCESS".equals(ours.error_msg)){
+                            for (Ours.Result.Face_list faceList : ours.result.face_list) {
+                                String user_info = faceList.user_list.get(0).user_info;
+                                String[] user = user_info.split("\\*");
+                                Our our = new Our();
+                                our.setName(user[0]);
+                                our.setUrl(user[1]);
+                                ourList.add(our);
+                            }
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    recyclerView.setVisibility(View.VISIBLE);
+                                    OursAdapter adapter = new OursAdapter(ourList);
+                                    recyclerView.setAdapter(adapter);
+                                    progressDialog.cancel();
+                                }
+                            });
+
+                        }else{
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(MainActivity.this, "照片模糊", Toast.LENGTH_SHORT).show();
+                                    progressDialog.cancel();
+                                }
+                            });
+                        }
                     }
                 });
             }
